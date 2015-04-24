@@ -13,22 +13,27 @@
 #define NGX_FDFS_UPLOAD_FILE                 1
 #define NGX_FDFS_DOWNLOAD_FILE               2
 #define NGX_FDFS_DELETE_FILE                 3
+#define NGX_FDFS_QUERY_FILE_INFO             4
 
 #define NGX_FDFS_TO_TRACKER                  1
 #define NGX_FDFS_TO_STORAGE                  2
 
-#define IP_ADDRESS_SIZE                            16
-#define NGX_FDFS_PKG_LEN_SIZE                       8
-#define NGX_FDFS_GROUP_NAME_MAX_LEN                16
+#define IP_ADDRESS_SIZE                      16
+#define NGX_FDFS_PKG_LEN_SIZE                8
+#define NGX_FDFS_GROUP_NAME_MAX_LEN          16
 
+//  for storage
+#define STORAGE_CMD_UPLOAD_FILE              11
+#define STORAGE_CMD_DELETE_FILE              12
+#define STORAGE_CMD_DOWNLOAD_FILE            14
+#define STORAGE_CMD_QUERY_FILE_INFO          22
+
+
+//  for tracker
 #define TRACKER_CMD_RESPONSE                              100
 #define TRACKER_CMD_SERVICE_QUERY_STORE_WITHOUT_GROUP_ONE 101
 #define TRACKER_CMD_SERVICE_QUERY_FETCH_ONE               102
 #define TRACKER_CMD_SERVICE_QUERY_UPDATE                  103
-
-#define STORAGE_CMD_UPLOAD_FILE                    11
-#define STORAGE_CMD_DELETE_FILE                    12
-#define STORAGE_CMD_DOWNLOAD_FILE                  14
 
 
 typedef struct {
@@ -40,7 +45,7 @@ typedef struct {
 typedef struct {
     u_char store_path_index;
     u_char upload_file_size[8];
-    u_char ext_name_len[6];
+    u_char ext_name[6];
 } ngx_http_fdfs_upload_file_to_store;
 
 typedef struct {
@@ -97,6 +102,8 @@ static ngx_conf_enum_t ngx_http_fastdfs_proto_cmd[] = {
     { ngx_string("upload"),     NGX_FDFS_UPLOAD_FILE },
     { ngx_string("download"),   NGX_FDFS_DOWNLOAD_FILE },
     { ngx_string("delete"),     NGX_FDFS_DELETE_FILE },
+    { ngx_string("file_info"),  NGX_FDFS_QUERY_FILE_INFO },
+    { ngx_string("monitor"),    NGX_FDFS_QUERY_FILE_INFO },
     { ngx_null_string,          0 }
 };
 
@@ -174,6 +181,7 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       offsetof(ngx_http_fastdfs_loc_conf_t, upstream.next_upstream),
       &ngx_http_fastdfs_next_upstream_masks },
 
+#if defined(nginx_version) && (nginx_version >= 1007005)
     { ngx_string("fastdfs_next_upstream_tries"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
@@ -187,6 +195,7 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_fastdfs_loc_conf_t, upstream.next_upstream_timeout),
       NULL },
+#endif
 
     { ngx_string("fastdfs_gzip_flag"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
@@ -195,6 +204,14 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       offsetof(ngx_http_fastdfs_loc_conf_t, gzip_flag),
       NULL },
 
+#if defined(nginx_version) && (nginx_version >= 1007011)
+    { ngx_string("fastdfs_limit_rate"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_fastdfs_loc_conf_t, upstream.limit_rate),
+      NULL },
+#endif
       ngx_null_command
 };
 
@@ -279,9 +296,20 @@ ngx_http_fastdfs_handler(ngx_http_request_t *r)
         }
 
         ctx->request = r;
+        ctx->subrequest = NULL;
+        ctx->proto_cmd = flcf->proto_cmd;
+        ctx->flag = NGX_FDFS_TO_TRACKER;
 
         ngx_http_set_ctx(r, ctx, ngx_http_fastdfs_module);
     }
+
+    u->pipe = ngx_pcalloc(r->pool, sizeof(ngx_event_pipe_t));
+    if (u->pipe == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    u->pipe->input_filter = ngx_event_pipe_copy_input_filter;
+    u->pipe->input_ctx = r;
 
     u->input_filter_init = ngx_http_fastdfs_filter_init;
     u->input_filter = ngx_http_fastdfs_filter;
@@ -455,15 +483,12 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
             } else {
 
                 fdfs_hdr.cmd = STORAGE_CMD_UPLOAD_FILE;
-
                 int2buff(sizeof(ngx_http_fdfs_upload_file_to_store) + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
-
-                int2buff(r->headers_in.content_length_n, fdfs_upload_file_hdr.upload_file_size);
 
                 //  TODO:   add the directive of store_path_index
                 fdfs_upload_file_hdr.store_path_index = 0;
-
-                //ngx_memcpy(fdfs_upload_file_hdr.ext_name_len, 
+                int2buff(r->headers_in.content_length_n, fdfs_upload_file_hdr.upload_file_size);
+                ngx_memcpy(fdfs_upload_file_hdr.ext_name, "zip", 4);
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
                 b->last = ngx_copy(b->last, &fdfs_upload_file_hdr, sizeof(ngx_http_fdfs_upload_file_to_store));
@@ -501,7 +526,7 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
                 int2buff(NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len, fdfs_hdr.pkg_len);
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
-                ngx_copy(b->last, group.data, group.len + 1);
+                ngx_memcpy(b->last, group.data, group.len + 1);
                 b->last += NGX_FDFS_GROUP_NAME_MAX_LEN;
                 b->last = ngx_cpymem(b->last, filename.data, filename.len);
 
@@ -516,7 +541,7 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
                 int2buff(0, b->last); b->last += 8;   //  TODO
                 int2buff(0, b->last); b->last += 8;
-                ngx_copy(b->last, group.data, group.len + 1);
+                ngx_memcpy(b->last, group.data, group.len + 1);
                 b->last += NGX_FDFS_GROUP_NAME_MAX_LEN;
                 b->last = ngx_copy(b->last, filename.data, filename.len);
 
@@ -533,7 +558,7 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
                 int2buff(NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len, fdfs_hdr.pkg_len);
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
-                ngx_copy(b->last, group.data, group.len + 1);
+                ngx_memcpy(b->last, group.data, group.len + 1);
                 b->last += NGX_FDFS_GROUP_NAME_MAX_LEN;
                 b->last = ngx_copy(b->last, filename.data, filename.len);
 
@@ -545,7 +570,7 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
 
-                ngx_copy(b->last, group.data, group.len + 1);
+                ngx_memcpy(b->last, group.data, group.len + 1);
                 b->last += NGX_FDFS_GROUP_NAME_MAX_LEN;
                 b->last = ngx_copy(b->last, filename.data, filename.len);
 
@@ -726,14 +751,21 @@ ngx_http_fastdfs_create_loc_conf(ngx_conf_t *cf)
      *     conf->upstream.location = NULL;
      */
 
-    conf->upstream.local = NGX_CONF_UNSET_PTR;
+#if defined(nginx_version) && (nginx_version >= 1007005)
     conf->upstream.next_upstream_tries = NGX_CONF_UNSET_UINT;
+    conf->upstream.next_upstream_timeout = NGX_CONF_UNSET_MSEC;
+#endif
+
+    conf->upstream.local = NGX_CONF_UNSET_PTR;
     conf->upstream.connect_timeout = NGX_CONF_UNSET_MSEC;
     conf->upstream.send_timeout = NGX_CONF_UNSET_MSEC;
     conf->upstream.read_timeout = NGX_CONF_UNSET_MSEC;
-    conf->upstream.next_upstream_timeout = NGX_CONF_UNSET_MSEC;
 
     conf->upstream.buffer_size = NGX_CONF_UNSET_SIZE;
+
+#if defined(nginx_version) && (nginx_version >= 1007011)
+    conf->upstream.limit_rate = NGX_CONF_UNSET_SIZE;
+#endif
 
     /* the hardcoded values */
     conf->upstream.cyclic_temp_file = 0;
@@ -748,6 +780,7 @@ ngx_http_fastdfs_create_loc_conf(ngx_conf_t *cf)
     conf->upstream.intercept_404 = 1;
     conf->upstream.pass_request_headers = 0;
     conf->upstream.pass_request_body = 0;
+
 
     conf->index = NGX_CONF_UNSET;
     conf->gzip_flag = NGX_CONF_UNSET_UINT;
@@ -766,8 +799,13 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(conf->upstream.local,
                               prev->upstream.local, NULL);
 
+#if defined(nginx_version) && (nginx_version >= 1007005)
     ngx_conf_merge_uint_value(conf->upstream.next_upstream_tries,
                               prev->upstream.next_upstream_tries, 0);
+
+    ngx_conf_merge_msec_value(conf->upstream.next_upstream_timeout,
+                              prev->upstream.next_upstream_timeout, 0);
+#endif
 
     ngx_conf_merge_msec_value(conf->upstream.connect_timeout,
                               prev->upstream.connect_timeout, 60000);
@@ -778,9 +816,6 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->upstream.read_timeout,
                               prev->upstream.read_timeout, 60000);
 
-    ngx_conf_merge_msec_value(conf->upstream.next_upstream_timeout,
-                              prev->upstream.next_upstream_timeout, 0);
-
     ngx_conf_merge_size_value(conf->upstream.buffer_size,
                               prev->upstream.buffer_size,
                               (size_t) ngx_pagesize);
@@ -790,6 +825,11 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
                               (NGX_CONF_BITMASK_SET
                                |NGX_HTTP_UPSTREAM_FT_ERROR
                                |NGX_HTTP_UPSTREAM_FT_TIMEOUT));
+
+#if defined(nginx_version) && (nginx_version >= 1007011)
+    ngx_conf_merge_size_value(conf->upstream.limit_rate,
+                              prev->upstream.limit_rate, 0);
+#endif
 
     if (conf->upstream.next_upstream & NGX_HTTP_UPSTREAM_FT_OFF) {
         conf->upstream.next_upstream = NGX_CONF_BITMASK_SET
