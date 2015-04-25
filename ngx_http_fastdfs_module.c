@@ -14,6 +14,9 @@
 #define NGX_FDFS_DOWNLOAD_FILE               2
 #define NGX_FDFS_DELETE_FILE                 3
 #define NGX_FDFS_QUERY_FILE_INFO             4
+#define NGX_FDFS_MONITOR_LIST                5
+#define NGX_FDFS_MONITOR_DELETE              6
+#define NGX_FDFS_MONITOR_SET_TRUNK_SERVER    7
 
 #define NGX_FDFS_TO_TRACKER                  1
 #define NGX_FDFS_TO_STORAGE                  2
@@ -28,12 +31,18 @@
 #define STORAGE_CMD_DOWNLOAD_FILE            14
 #define STORAGE_CMD_QUERY_FILE_INFO          22
 
-
 //  for tracker
+#define TRACKER_CMD_SERVER_LIST_ONE_GROUP         90
+#define TRACKER_CMD_SERVER_LIST_ALL_GROUPS        91
+#define TRACKER_CMD_SERVER_LIST_STORAGE           92
+#define TRACKER_CMD_SERVER_DELETE_STORAGE         93
+#define TRACKER_CMD_SERVER_SET_TRUNK_SERVER       94
+
 #define TRACKER_CMD_RESPONSE                              100
 #define TRACKER_CMD_SERVICE_QUERY_STORE_WITHOUT_GROUP_ONE 101
 #define TRACKER_CMD_SERVICE_QUERY_FETCH_ONE               102
 #define TRACKER_CMD_SERVICE_QUERY_UPDATE                  103
+#define TRACKER_CMD_SERVER_DELETE_GROUP                   108
 
 
 typedef struct {
@@ -64,6 +73,9 @@ typedef struct {
     ngx_http_request_t        *request;
     ngx_http_request_t        *subrequest;
     ngx_str_t                  store_ip;
+    ngx_str_t                  recv_content;
+    off_t                      length;
+    ngx_uint_t                 state;
     ngx_uint_t                 proto_cmd;       //  process command  (upload、delete、download etc.)
     ngx_uint_t                 flag;            //  pass to tracker or storage
     ngx_uint_t                 done;
@@ -75,12 +87,13 @@ static int64_t buff2int(const u_char *buff);
 static ngx_int_t ngx_http_fastdfs_add_variables(ngx_conf_t *cf);
 static ngx_int_t ngx_http_fastdfs_create_request(ngx_http_request_t *r);
 static ngx_int_t ngx_http_fastdfs_reinit_request(ngx_http_request_t *r);
+static ngx_int_t ngx_http_fastdfs_process_line(ngx_http_request_t *r);
 static ngx_int_t ngx_http_fastdfs_process_header(ngx_http_request_t *r);
 static ngx_int_t ngx_http_fastdfs_access_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_http_fastdfs_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_http_fastdfs_handle_init(ngx_conf_t *cf);
 static ngx_int_t ngx_http_fastdfs_filter_init(void *data);
-static ngx_int_t ngx_http_fastdfs_filter(void *data, ssize_t bytes);
+static ngx_int_t ngx_http_fastdfs_non_buffered_copy_filter(void *data, ssize_t bytes);
 static ngx_int_t ngx_http_fastdfs_eval(ngx_http_request_t *r, 
     ngx_http_fastdfs_loc_conf_t *flcf);
 static ngx_int_t ngx_http_fastdfs_storage_ip_variable(ngx_http_request_t *r,
@@ -99,12 +112,14 @@ static char *ngx_http_fastdfs_tracker_fetch(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 
 static ngx_conf_enum_t ngx_http_fastdfs_proto_cmd[] = {
-    { ngx_string("upload"),     NGX_FDFS_UPLOAD_FILE },
-    { ngx_string("download"),   NGX_FDFS_DOWNLOAD_FILE },
-    { ngx_string("delete"),     NGX_FDFS_DELETE_FILE },
-    { ngx_string("file_info"),  NGX_FDFS_QUERY_FILE_INFO },
-    { ngx_string("monitor"),    NGX_FDFS_QUERY_FILE_INFO },
-    { ngx_null_string,          0 }
+    { ngx_string("upload"),                     NGX_FDFS_UPLOAD_FILE },
+    { ngx_string("download"),                   NGX_FDFS_DOWNLOAD_FILE },
+    { ngx_string("delete"),                     NGX_FDFS_DELETE_FILE },
+    { ngx_string("file_info"),                  NGX_FDFS_QUERY_FILE_INFO },
+    { ngx_string("monitor_list"),               NGX_FDFS_MONITOR_LIST },
+    { ngx_string("monitor_delete"),             NGX_FDFS_MONITOR_DELETE },
+    { ngx_string("monitor_set_trunk_server"),   NGX_FDFS_MONITOR_SET_TRUNK_SERVER },
+    { ngx_null_string,                          0 }
 };
 
 static ngx_conf_bitmask_t  ngx_http_fastdfs_next_upstream_masks[] = {
@@ -284,7 +299,7 @@ ngx_http_fastdfs_handler(ngx_http_request_t *r)
 
     u->create_request = ngx_http_fastdfs_create_request;
     u->reinit_request = ngx_http_fastdfs_reinit_request;
-    u->process_header = ngx_http_fastdfs_process_header;
+    u->process_header = ngx_http_fastdfs_process_line;
     u->abort_request = ngx_http_fastdfs_abort_request;
     u->finalize_request = ngx_http_fastdfs_finalize_request;
 
@@ -303,16 +318,8 @@ ngx_http_fastdfs_handler(ngx_http_request_t *r)
         ngx_http_set_ctx(r, ctx, ngx_http_fastdfs_module);
     }
 
-    u->pipe = ngx_pcalloc(r->pool, sizeof(ngx_event_pipe_t));
-    if (u->pipe == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    u->pipe->input_filter = ngx_event_pipe_copy_input_filter;
-    u->pipe->input_ctx = r;
-
     u->input_filter_init = ngx_http_fastdfs_filter_init;
-    u->input_filter = ngx_http_fastdfs_filter;
+    u->input_filter = ngx_http_fastdfs_non_buffered_copy_filter;
     u->input_filter_ctx = ctx;
 
     rc = ngx_http_read_client_request_body(r, ngx_http_upstream_init);
@@ -447,6 +454,26 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
             }
 
             break;
+
+        case NGX_FDFS_MONITOR_LIST:
+
+            if (ctx->flag == NGX_FDFS_TO_TRACKER) {
+                len = sizeof(ngx_http_fastdfs_proto_hdr);
+            } else {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                              "fdfs create request : monitor list is invalid.");
+                return NGX_ERROR;
+            }
+
+            break;
+
+        case NGX_FDFS_MONITOR_DELETE:
+
+
+            break;
+
+        case NGX_FDFS_MONITOR_SET_TRUNK_SERVER:
+        case NGX_FDFS_QUERY_FILE_INFO:
         default:
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                           "fdfs create request : unknown process command (%ui).", ctx->proto_cmd);
@@ -579,6 +606,23 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
             break;
 
+        case NGX_FDFS_MONITOR_LIST:
+
+            if (ctx->flag == NGX_FDFS_TO_TRACKER) {
+
+                fdfs_hdr.cmd = TRACKER_CMD_SERVER_LIST_ALL_GROUPS;
+
+                b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
+
+                u->request_bufs = cl;
+            }
+
+            break;
+
+        case NGX_FDFS_QUERY_FILE_INFO:
+        case NGX_FDFS_MONITOR_DELETE:
+        case NGX_FDFS_MONITOR_SET_TRUNK_SERVER:
+
         default:
             //  dummy
             break;
@@ -594,16 +638,19 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_fastdfs_reinit_request(ngx_http_request_t *r)
 {
+    r->upstream->input_filter = ngx_http_fastdfs_non_buffered_copy_filter;
+    r->upstream->process_header = ngx_http_fastdfs_process_line;
+
     return NGX_OK;
 }
 
-
 static ngx_int_t
-ngx_http_fastdfs_process_header(ngx_http_request_t *r)
+ngx_http_fastdfs_process_line(ngx_http_request_t *r)
 {
     off_t                           pkg_len;
     ngx_uint_t                      status_n;
     ngx_http_upstream_t            *u;
+    ngx_http_fastdfs_ctx_t         *ctx;
     ngx_http_fastdfs_proto_hdr     *pfdfs_hdr;
 
     status_n = NGX_HTTP_OK;
@@ -639,23 +686,73 @@ ngx_http_fastdfs_process_header(ngx_http_request_t *r)
 
 done:
 
-    u->headers_in.content_length_n = pkg_len;
     u->headers_in.status_n = status_n;
     u->state->status = status_n;
     u->buffer.pos += sizeof(ngx_http_fastdfs_proto_hdr);
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_fastdfs_module);
     
-    return NGX_OK;
+    if (pkg_len == 0 || (ctx->proto_cmd != NGX_FDFS_UPLOAD_FILE || ctx->flag != NGX_FDFS_TO_STORAGE)) {
+        u->headers_in.content_length_n = pkg_len;
+        return NGX_OK;
+    }
+
+    ctx->length = pkg_len;
+    u->process_header = ngx_http_fastdfs_process_header;
+
+    return ngx_http_fastdfs_process_header(r);
 }
 
+static ngx_int_t
+ngx_http_fastdfs_process_header(ngx_http_request_t *r)
+{
+    size_t                          len, delta;
+    u_char                         *p;
+    ngx_http_fastdfs_ctx_t         *ctx;
+    ngx_http_upstream_t            *u;
+
+    u = r->upstream;
+    ctx = ngx_http_get_module_ctx(r, ngx_http_fastdfs_module);
+
+    if (ctx->length > (off_t) (u->buffer.last - u->buffer.pos)) {
+        return NGX_AGAIN;
+    }
+
+    switch (ctx->proto_cmd) {
+         case NGX_FDFS_UPLOAD_FILE:
+
+             p = ngx_strlchr(u->buffer.pos, u->buffer.pos + NGX_FDFS_GROUP_NAME_MAX_LEN, '\0');
+             if (p == NULL) {
+                 // TODO: ERROR
+                 return NGX_HTTP_UPSTREAM_INVALID_HEADER;
+             }
+
+             *p++ = '/';
+             len = p - u->buffer.pos;
+             delta = u->buffer.pos + NGX_FDFS_GROUP_NAME_MAX_LEN - p;
+             ngx_memmove(u->buffer.pos + delta, u->buffer.pos, len);
+             u->buffer.pos = u->buffer.pos + delta;
+             u->headers_in.content_length_n = u->buffer.last - u->buffer.pos;
+
+             break;
+         default:
+             u->headers_in.content_length_n = ctx->length;
+             return NGX_OK;
+     }
+
+    return NGX_OK;
+}
 
 static ngx_int_t
 ngx_http_fastdfs_filter_init(void *data)
 {
     ngx_http_fastdfs_ctx_t  *ctx = data;
 
+    ngx_http_request_t   *r;
     ngx_http_upstream_t  *u;
 
-    u = ctx->request->upstream;
+    r = ctx->request;
+    u = r->upstream;
 
     if (u->headers_in.status_n != 404) {
         u->length = u->headers_in.content_length_n;
@@ -668,7 +765,7 @@ ngx_http_fastdfs_filter_init(void *data)
 
 
 static ngx_int_t
-ngx_http_fastdfs_filter(void *data, ssize_t bytes)
+ngx_http_fastdfs_non_buffered_copy_filter(void *data, ssize_t bytes)
 {
     ngx_http_fastdfs_ctx_t  *ctx = data;
 
@@ -711,7 +808,6 @@ ngx_http_fastdfs_filter(void *data, ssize_t bytes)
 
     return NGX_OK;
 }
-
 
 static void
 ngx_http_fastdfs_abort_request(ngx_http_request_t *r)
