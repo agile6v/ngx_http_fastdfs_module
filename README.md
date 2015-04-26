@@ -17,7 +17,40 @@ Directives
 
 Sample Configuration
 ====
+```nginx
+	upstream fdfs_tracker_servers {
+        server 129.168.1.100:22124;
+    }
+	
+	http {
+	    listen       80;
+        server_name  localhost;
+        client_max_body_size 100m;
 
+        location /upload {
+            fastdfs_cmd "upload";
+            fastdfs_tracker_fetch /fetch_tracker_srv;
+            fastdfs_pass $storage_ip;
+        }
+
+        location /download {
+            fastdfs_cmd "download";
+            fastdfs_tracker_fetch /fetch_tracker_srv;
+            fastdfs_pass $storage_ip;
+        }
+
+        location /delete {
+            fastdfs_cmd "delete";
+            fastdfs_tracker_fetch /fetch_tracker_srv;
+            fastdfs_pass $storage_ip;
+        }
+        location /fetch_tracker_srv {
+            internal;
+            fastdfs_pass fdfs_tracker_servers;
+        }
+	}
+
+```
 
 
 See also
