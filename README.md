@@ -4,6 +4,10 @@ The **ngx_http_fastdfs_module** allows passing requests to a FastDFS server.
 
 Note: This module supports many features such as upload、download、delete etc. The [fastdfs-nginx-module][] only supports download files from local disk.
 
+
+![flowchart][flowchart]
+
+
 *This module is not distributed with the Nginx source.*  See [the installation instructions](#installation).
 
 Installation
@@ -59,4 +63,5 @@ See also
 
 [FastDFS]: https://github.com/happyfish100/fastdfs
 [fastdfs-nginx-module]: https://github.com/happyfish100/fastdfs-nginx-module
+[flowchart]: https://github.com/agile6v/ngx_http_fastdfs_module/blob/master/ngx_http_fastdfs.png
 
