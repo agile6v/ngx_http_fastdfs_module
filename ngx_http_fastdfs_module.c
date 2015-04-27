@@ -67,6 +67,7 @@ typedef struct {
     ngx_uint_t                 gzip_flag;
     ngx_uint_t                 proto_cmd;       //  fdfs process command (upload、delete、download etc.)
     ngx_str_t                  uri;             //  location uri for tracker config
+    ngx_http_complex_value_t  *fileID;
 } ngx_http_fastdfs_loc_conf_t;
 
 typedef struct {
@@ -145,6 +146,13 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       ngx_http_fastdfs_tracker_fetch,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
+      NULL },
+
+    { ngx_string("fastdfs_fileID"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_http_set_complex_value_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_fastdfs_loc_conf_t, fileID),
       NULL },
 
     { ngx_string("fastdfs_bind"),
@@ -348,6 +356,7 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
     len = 0;
     u = r->upstream;
+    ngx_str_null(&fileID);
     ngx_memzero(&fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
     ngx_memzero(&fdfs_upload_file_hdr, sizeof(ngx_http_fdfs_upload_file_to_store));
 
@@ -377,7 +386,13 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
         case NGX_FDFS_DOWNLOAD_FILE:
 
-            if ((ngx_http_arg(r, (u_char *) "fileID", 6, &fileID) != NGX_OK) || fileID.len <= 0) {
+            if (flcf->fileID != NULL) {
+                if (ngx_http_complex_value(r, flcf->fileID, &fileID) != NGX_OK) {
+                    return NGX_ERROR;
+                }
+            }
+
+            if (fileID.len <= 0) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                               "fdfs create request : fileID is emtpy.");
                 return NGX_HTTP_NOT_ALLOWED;
@@ -926,6 +941,10 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_size_value(conf->upstream.limit_rate,
                               prev->upstream.limit_rate, 0);
 #endif
+
+    if (conf->fileID == NULL) {
+        conf->fileID = prev->fileID;
+    }
 
     if (conf->upstream.next_upstream & NGX_HTTP_UPSTREAM_FT_OFF) {
         conf->upstream.next_upstream = NGX_CONF_BITMASK_SET
