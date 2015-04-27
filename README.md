@@ -49,6 +49,7 @@ Sample Configuration
             fastdfs_tracker_fetch /fetch_tracker_srv;
             fastdfs_pass $storage_ip;
         }
+        
         location /fetch_tracker_srv {
             internal;
             fastdfs_pass fdfs_tracker_servers;
