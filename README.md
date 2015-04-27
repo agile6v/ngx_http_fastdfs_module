@@ -30,6 +30,7 @@ Sample Configuration
 	    listen       80;
         server_name  localhost;
         client_max_body_size 100m;
+        fastdfs_fileID "$arg_fileID";
 
         location /upload {
             fastdfs_cmd "upload";
