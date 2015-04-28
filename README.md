@@ -30,6 +30,7 @@ Sample Configuration
 	    listen       80;
         server_name  localhost;
         client_max_body_size 100m;
+        fastdfs_fileID "$arg_fileID";
 
         location /upload {
             fastdfs_cmd "upload";
@@ -48,6 +49,7 @@ Sample Configuration
             fastdfs_tracker_fetch /fetch_tracker_srv;
             fastdfs_pass $storage_ip;
         }
+        
         location /fetch_tracker_srv {
             internal;
             fastdfs_pass fdfs_tracker_servers;
