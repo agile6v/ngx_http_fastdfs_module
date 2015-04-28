@@ -17,6 +17,8 @@
 #define NGX_FDFS_MONITOR_LIST                5
 #define NGX_FDFS_MONITOR_DELETE              6
 #define NGX_FDFS_MONITOR_SET_TRUNK_SERVER    7
+#define NGX_FDFS_APPEND_FILE                 8
+
 
 #define NGX_FDFS_TO_TRACKER                  1
 #define NGX_FDFS_TO_STORAGE                  2
@@ -30,6 +32,8 @@
 #define STORAGE_CMD_DELETE_FILE              12
 #define STORAGE_CMD_DOWNLOAD_FILE            14
 #define STORAGE_CMD_QUERY_FILE_INFO          22
+#define STORAGE_CMD_APPEND_FILE              24
+
 
 //  for tracker
 #define TRACKER_CMD_SERVER_LIST_ONE_GROUP         90
@@ -99,6 +103,8 @@ static ngx_int_t ngx_http_fastdfs_eval(ngx_http_request_t *r,
     ngx_http_fastdfs_loc_conf_t *flcf);
 static ngx_int_t ngx_http_fastdfs_storage_ip_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
+static ngx_int_t ngx_http_fastdfs_get_group_and_filename(ngx_http_request_t *r,
+    ngx_str_t *group, ngx_str_t *filename, ngx_str_t *fileID_name);
 static ngx_int_t ngx_http_fastdfs_access_done(ngx_http_request_t *r,
     void *data, ngx_int_t rc);
 static void ngx_http_fastdfs_abort_request(ngx_http_request_t *r);
@@ -114,6 +120,7 @@ static char *ngx_http_fastdfs_tracker_fetch(ngx_conf_t *cf,
 
 static ngx_conf_enum_t ngx_http_fastdfs_proto_cmd[] = {
     { ngx_string("upload"),                     NGX_FDFS_UPLOAD_FILE },
+    { ngx_string("append"),                     NGX_FDFS_APPEND_FILE },
     { ngx_string("download"),                   NGX_FDFS_DOWNLOAD_FILE },
     { ngx_string("delete"),                     NGX_FDFS_DELETE_FILE },
     { ngx_string("file_info"),                  NGX_FDFS_QUERY_FILE_INFO },
@@ -344,8 +351,8 @@ static ngx_int_t
 ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 {
     size_t                               len;
+    ngx_int_t                            rc;
     ngx_str_t                            fileID, group, filename;
-    u_char                              *p;
     ngx_buf_t                           *b;
     ngx_http_upstream_t                 *u;
     ngx_http_fastdfs_ctx_t              *ctx;
@@ -384,41 +391,46 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
             break;
 
+        case NGX_FDFS_APPEND_FILE:
+
+            if (ctx->flag == NGX_FDFS_TO_TRACKER) {
+
+                rc = ngx_http_fastdfs_get_group_and_filename(r, &group, &filename, &fileID);
+                if (rc != NGX_OK) {
+                    return NGX_HTTP_NOT_ALLOWED;
+                }
+
+                len = sizeof(ngx_http_fastdfs_proto_hdr) + NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len;
+
+            } else {
+
+                if (flcf->fileID != NULL) {
+                    if (ngx_http_complex_value(r, flcf->fileID, &fileID) != NGX_OK) {
+                        return NGX_HTTP_NOT_ALLOWED;
+                    }
+                }
+
+                if (fileID.len <= 0) {
+                    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                                  "fdfs create request : fileID is emtpy.");
+                    return NGX_HTTP_NOT_ALLOWED;
+                }
+
+                /*
+                 *  len = len(hdr) + filename length(8 byte) + file size(8 byte)
+                 *        + len(filename)
+                 */
+                len = sizeof(ngx_http_fastdfs_proto_hdr) + 8 + 8 + fileID.len;
+            }
+
+            break;
+
         case NGX_FDFS_DOWNLOAD_FILE:
 
-            if (flcf->fileID != NULL) {
-                if (ngx_http_complex_value(r, flcf->fileID, &fileID) != NGX_OK) {
-                    return NGX_ERROR;
-                }
-            }
-
-            if (fileID.len <= 0) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                              "fdfs create request : fileID is emtpy.");
+            rc = ngx_http_fastdfs_get_group_and_filename(r, &group, &filename, &fileID);
+            if (rc != NGX_OK) {
                 return NGX_HTTP_NOT_ALLOWED;
             }
-
-            p = (u_char *) ngx_strchr(fileID.data, '/');
-            if (p == NULL) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                              "fdfs create request : group not found. (%V)", &fileID);
-                return NGX_HTTP_NOT_ALLOWED;
-            }
-
-            filename.len = fileID.data + fileID.len - (p + 1);
-            filename.data = p + 1;
-
-            group.len = p - fileID.data;
-            group.data = ngx_pcalloc(r->pool, group.len + 1);
-            if (group.data == NULL) {
-                return NGX_ERROR;
-            }
-
-            p = ngx_copy(group.data, fileID.data, group.len);
-            *p = '\0';
-
-            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "fdfs create request : download file %V, %V",
-                            &group, &filename);
 
             if (ctx->flag == NGX_FDFS_TO_TRACKER) {
                 len = sizeof(ngx_http_fastdfs_proto_hdr) + NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len;
@@ -434,33 +446,10 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
         case NGX_FDFS_DELETE_FILE:
             
-            if ((ngx_http_arg(r, (u_char *) "fileID", 6, &fileID) != NGX_OK) || fileID.len <= 0) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                              "fdfs create request : fileID is emtpy.");
+            rc = ngx_http_fastdfs_get_group_and_filename(r, &group, &filename, &fileID);
+            if (rc != NGX_OK) {
                 return NGX_HTTP_NOT_ALLOWED;
             }
-
-            p = (u_char *) ngx_strchr(fileID.data, '/');
-            if (p == NULL) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                              "fdfs create request : group not found. (%V)", &fileID);
-                return NGX_HTTP_NOT_ALLOWED;
-            }
-
-            filename.len = fileID.data + fileID.len - (p + 1);
-            filename.data = p + 1;
-
-            group.len = p - fileID.data;
-            group.data = ngx_pcalloc(r->pool, group.len + 1);
-            if (group.data == NULL) {
-                return NGX_ERROR;
-            }
-
-            p = ngx_copy(group.data, fileID.data, group.len);
-            *p = '\0';
-
-            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "fdfs create request : download file %V, %V",
-                            &group, &filename);
 
             if (ctx->flag == NGX_FDFS_TO_TRACKER) {
                 len = sizeof(ngx_http_fastdfs_proto_hdr) + NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len;
@@ -534,6 +523,57 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
                 b->last = ngx_copy(b->last, &fdfs_upload_file_hdr, sizeof(ngx_http_fdfs_upload_file_to_store));
+
+                body = u->request_bufs;
+                u->request_bufs = cl;
+
+                while (body) {
+                    b = ngx_alloc_buf(r->pool);
+                    if (b == NULL) {
+                        return NGX_ERROR;
+                    }
+
+                    ngx_memcpy(b, body->buf, sizeof(ngx_buf_t));
+
+                    cl->next = ngx_alloc_chain_link(r->pool);
+                    if (cl->next == NULL) {
+                        return NGX_ERROR;
+                    }
+
+                    cl = cl->next;
+                    cl->buf = b;
+
+                    body = body->next;
+                }
+            }
+
+            break;
+
+        case NGX_FDFS_APPEND_FILE:
+
+            if (ctx->flag == NGX_FDFS_TO_TRACKER) {
+
+                fdfs_hdr.cmd = TRACKER_CMD_SERVICE_QUERY_UPDATE;
+
+                int2buff(NGX_FDFS_GROUP_NAME_MAX_LEN + filename.len, fdfs_hdr.pkg_len);
+
+                b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
+                ngx_memcpy(b->last, group.data, group.len + 1);
+                b->last += NGX_FDFS_GROUP_NAME_MAX_LEN;
+                b->last = ngx_cpymem(b->last, filename.data, filename.len);
+
+                u->request_bufs = cl;
+
+            } else {
+
+                fdfs_hdr.cmd = STORAGE_CMD_APPEND_FILE;
+
+                int2buff(8 + 8 + fileID.len + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
+
+                b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
+                int2buff(fileID.len, b->last);                      b->last += 8;
+                int2buff(r->headers_in.content_length_n, b->last);  b->last += 8;
+                b->last = ngx_copy(b->last, fileID.data, fileID.len);
 
                 body = u->request_bufs;
                 u->request_bufs = cl;
@@ -1166,6 +1206,7 @@ ngx_http_fastdfs_access_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
     switch (ctx->proto_cmd) {
 
         case NGX_FDFS_UPLOAD_FILE:
+        case NGX_FDFS_APPEND_FILE:
         case NGX_FDFS_DOWNLOAD_FILE:
         case NGX_FDFS_DELETE_FILE:
 
@@ -1247,6 +1288,59 @@ ngx_http_fastdfs_storage_ip_variable(ngx_http_request_t *r,
     v->no_cacheable = 0;
     v->not_found = 0;
     v->data = ctx->store_ip.data;
+
+    return NGX_OK;
+}
+
+static ngx_int_t
+ngx_http_fastdfs_get_group_and_filename(ngx_http_request_t *r, ngx_str_t *group,
+    ngx_str_t *filename, ngx_str_t *fileID_name)
+{
+    size_t                               len;
+    u_char                              *p;
+    ngx_str_t                            fileID;
+    ngx_http_fastdfs_loc_conf_t         *flcf;
+
+    len = 0;
+    ngx_str_null(&fileID);
+
+    flcf = ngx_http_get_module_loc_conf(r, ngx_http_fastdfs_module);
+
+    if (flcf->fileID != NULL) {
+        if (ngx_http_complex_value(r, flcf->fileID, &fileID) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        fileID_name = &fileID;
+    }
+
+    if (fileID.len <= 0) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "get_group_filename : fileID is emtpy.");
+        return NGX_ERROR;
+    }
+
+    p = (u_char *) ngx_strchr(fileID.data, '/');
+    if (p == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "get_group_filename : group not found. (%V)", &fileID);
+        return NGX_ERROR;
+    }
+
+    filename->len = fileID.data + fileID.len - (p + 1);
+    filename->data = p + 1;
+
+    group->len = p - fileID.data;
+    group->data = ngx_pcalloc(r->pool, group->len + 1);
+    if (group->data == NULL) {
+        return NGX_ERROR;
+    }
+
+    p = ngx_copy(group->data, fileID.data, group->len);
+    *p = '\0';
+
+    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "get_group_filename : %V, %V",
+                    group, filename);
 
     return NGX_OK;
 }
