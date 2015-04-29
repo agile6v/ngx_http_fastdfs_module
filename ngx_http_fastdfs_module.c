@@ -19,7 +19,6 @@
 #define NGX_FDFS_MONITOR_SET_TRUNK_SERVER    7
 #define NGX_FDFS_APPEND_FILE                 8
 
-
 #define NGX_FDFS_TO_TRACKER                  1
 #define NGX_FDFS_TO_STORAGE                  2
 
@@ -32,6 +31,7 @@
 #define STORAGE_CMD_DELETE_FILE              12
 #define STORAGE_CMD_DOWNLOAD_FILE            14
 #define STORAGE_CMD_QUERY_FILE_INFO          22
+#define STORAGE_CMD_UPLOAD_APPENDER_FILE     23
 #define STORAGE_CMD_APPEND_FILE              24
 
 
@@ -69,6 +69,7 @@ typedef struct {
 
     ngx_int_t                  index;
     ngx_uint_t                 gzip_flag;
+    ngx_flag_t                 append_flag;
     ngx_uint_t                 proto_cmd;       //  fdfs process command (upload、delete、download etc.)
     ngx_str_t                  uri;             //  location uri for tracker config
     ngx_http_complex_value_t  *fileID;
@@ -160,6 +161,13 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       ngx_http_set_complex_value_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_fastdfs_loc_conf_t, fileID),
+      NULL },
+
+    { ngx_string("fastdfs_append_flag"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_fastdfs_loc_conf_t, append_flag),
       NULL },
 
     { ngx_string("fastdfs_bind"),
@@ -404,23 +412,19 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
             } else {
 
-                if (flcf->fileID != NULL) {
-                    if (ngx_http_complex_value(r, flcf->fileID, &fileID) != NGX_OK) {
-                        return NGX_HTTP_NOT_ALLOWED;
-                    }
-                }
-
-                if (fileID.len <= 0) {
-                    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                                  "fdfs create request : fileID is emtpy.");
+                rc = ngx_http_fastdfs_get_group_and_filename(r, &group, &filename, &fileID);
+                if (rc != NGX_OK) {
                     return NGX_HTTP_NOT_ALLOWED;
                 }
+
+                ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                               "fdfs create request : fileID=%V", &fileID);
 
                 /*
                  *  len = len(hdr) + filename length(8 byte) + file size(8 byte)
                  *        + len(filename)
                  */
-                len = sizeof(ngx_http_fastdfs_proto_hdr) + 8 + 8 + fileID.len;
+                len = sizeof(ngx_http_fastdfs_proto_hdr) + 8 + 8 + filename.len;
             }
 
             break;
@@ -513,7 +517,12 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
             } else {
 
-                fdfs_hdr.cmd = STORAGE_CMD_UPLOAD_FILE;
+                if (flcf->append_flag) {
+                    fdfs_hdr.cmd = STORAGE_CMD_UPLOAD_APPENDER_FILE;
+                } else {
+                    fdfs_hdr.cmd = STORAGE_CMD_UPLOAD_FILE;
+                }
+
                 int2buff(sizeof(ngx_http_fdfs_upload_file_to_store) + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
 
                 //  TODO:   add the directive of store_path_index
@@ -568,12 +577,12 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
                 fdfs_hdr.cmd = STORAGE_CMD_APPEND_FILE;
 
-                int2buff(8 + 8 + fileID.len + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
+                int2buff(8 + 8 + filename.len + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
-                int2buff(fileID.len, b->last);                      b->last += 8;
+                int2buff(filename.len, b->last);                    b->last += 8;
                 int2buff(r->headers_in.content_length_n, b->last);  b->last += 8;
-                b->last = ngx_copy(b->last, fileID.data, fileID.len);
+                b->last = ngx_copy(b->last, filename.data, filename.len);
 
                 body = u->request_bufs;
                 u->request_bufs = cl;
@@ -935,6 +944,7 @@ ngx_http_fastdfs_create_loc_conf(ngx_conf_t *cf)
 
     conf->index = NGX_CONF_UNSET;
     conf->gzip_flag = NGX_CONF_UNSET_UINT;
+    conf->append_flag = NGX_CONF_UNSET;
     conf->proto_cmd = NGX_CONF_UNSET_UINT;
 
     return conf;
@@ -1000,6 +1010,7 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     }
 
     ngx_conf_merge_str_value(conf->uri, prev->uri, "");
+    ngx_conf_merge_value(conf->append_flag, prev->append_flag, 0);
     ngx_conf_merge_uint_value(conf->gzip_flag, prev->gzip_flag, 0);
     ngx_conf_merge_uint_value(conf->proto_cmd, prev->proto_cmd, 0);
 
