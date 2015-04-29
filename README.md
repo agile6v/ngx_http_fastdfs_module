@@ -34,6 +34,14 @@ Sample Configuration
 
         location /upload {
             fastdfs_cmd "upload";
+            // Turn on this directive, to be able to perform the append opertaion.
+            fastdfs_append_flag on;	
+            fastdfs_tracker_fetch /fetch_tracker_srv;
+            fastdfs_pass $storage_ip;
+        }
+        
+        location /append {
+            fastdfs_cmd "append";
             fastdfs_tracker_fetch /fetch_tracker_srv;
             fastdfs_pass $storage_ip;
         }
