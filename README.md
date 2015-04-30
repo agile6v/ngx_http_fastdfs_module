@@ -33,7 +33,8 @@ Directives
 * [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
 * [fastdfs_limit_rate](#fastdfs_limit_rate)
 
- fastdfs_pass
+
+fastdfs_pass
 -------------------
 **syntax:** *fastdfs_pass 127.0.0.1:23000*
 
