@@ -17,6 +17,191 @@ Installation
 
 Directives
 ====
+	* [fastdfs_pass](#fastdfs_pass)
+	* [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
+	* [fastdfs_fileID](#fastdfs_fileID)
+	* [fastdfs_append_flag](#fastdfs_append_flag)
+	* [fastdfs_bind](#fastdfs_bind)
+	* [fastdfs_cmd](#fastdfs_cmd)
+	* [fastdfs_connect_timeout](#fastdfs_connect_timeout)
+	* [fastdfs_buffer_size](#fastdfs_buffer_size)
+	* [fastdfs_send_timeout](#fastdfs_send_timeout)
+	* [fastdfs_read_timeout](#fastdfs_read_timeout)
+	* [fastdfs_next_upstream](#fastdfs_next_upstream)
+	* [fastdfs_next_upstream_tries](#fastdfs_next_upstream_tries)
+	* [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
+	* [fastdfs_limit_rate](#fastdfs_limit_rate)
+
+fastdfs_pass
+-------------------
+**syntax:** *fastdfs_pass 127.0.0.1:23000*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_tracker_fetch
+-------------------
+**syntax:** *fastdfs_tracker_fetch*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_fileID
+-------------------
+**syntax:** *fastdfs_fileID*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_append_flag
+-------------------
+**syntax:** *fastdfs_append_flag*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_bind
+-------------------
+**syntax:** *fastdfs_bind*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_cmd
+-------------------
+**syntax:** *fastdfs_cmd*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_connect_timeout
+-------------------
+**syntax:** *fastdfs_connect_timeout*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_buffer_size
+-------------------
+**syntax:** *fastdfs_buffer_size*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_send_timeout
+-------------------
+**syntax:** *fastdfs_send_timeout*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_read_timeout
+-------------------
+**syntax:** *fastdfs_read_timeout*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_next_upstream
+-------------------
+**syntax:** *fastdfs_next_upstream*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_next_upstream_tries
+-------------------
+**syntax:** *fastdfs_next_upstream_tries*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+fastdfs_next_upstream_timeout
+-------------------
+**syntax:** *fastdfs_next_upstream_timeout*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
+[Back](#Directives)
+
+fastdfs_limit_rate
+-------------------
+**syntax:** *fastdfs_limit_rate*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+Reserved. 
+
+[Back](#Directives)
+
 
 
 Sample Configuration
