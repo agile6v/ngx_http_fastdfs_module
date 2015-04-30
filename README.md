@@ -17,22 +17,24 @@ Installation
 
 Directives
 ====
-	* [fastdfs_pass](#fastdfs_pass)
-	* [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
-	* [fastdfs_fileID](#fastdfs_fileID)
-	* [fastdfs_append_flag](#fastdfs_append_flag)
-	* [fastdfs_bind](#fastdfs_bind)
-	* [fastdfs_cmd](#fastdfs_cmd)
-	* [fastdfs_connect_timeout](#fastdfs_connect_timeout)
-	* [fastdfs_buffer_size](#fastdfs_buffer_size)
-	* [fastdfs_send_timeout](#fastdfs_send_timeout)
-	* [fastdfs_read_timeout](#fastdfs_read_timeout)
-	* [fastdfs_next_upstream](#fastdfs_next_upstream)
-	* [fastdfs_next_upstream_tries](#fastdfs_next_upstream_tries)
-	* [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
-	* [fastdfs_limit_rate](#fastdfs_limit_rate)
 
-fastdfs_pass
+* [fastdfs_pass](#fastdfs_pass)
+* [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
+* [fastdfs_fileID](#fastdfs_fileID)
+* [fastdfs_append_flag](#fastdfs_append_flag)
+* [fastdfs_bind](#fastdfs_bind)
+* [fastdfs_cmd](#fastdfs_cmd)
+* [fastdfs_connect_timeout](#fastdfs_connect_timeout)
+* [fastdfs_buffer_size](#fastdfs_buffer_size)
+* [fastdfs_send_timeout](#fastdfs_send_timeout)
+* [fastdfs_read_timeout](#fastdfs_read_timeout)
+* [fastdfs_next_upstream](#fastdfs_next_upstream)
+* [fastdfs_next_upstream_tries](#fastdfs_next_upstream_tries)
+* [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
+* [fastdfs_limit_rate](#fastdfs_limit_rate)
+
+
+ fastdfs_pass
 -------------------
 **syntax:** *fastdfs_pass 127.0.0.1:23000*
 
