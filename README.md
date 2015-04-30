@@ -16,7 +16,7 @@ Installation
 
 
 Directives
-====
+=================
 
 * [fastdfs_pass](#fastdfs_pass)
 * [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
@@ -32,7 +32,6 @@ Directives
 * [fastdfs_next_upstream_tries](#fastdfs_next_upstream_tries)
 * [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
 * [fastdfs_limit_rate](#fastdfs_limit_rate)
-
 
  fastdfs_pass
 -------------------
@@ -187,8 +186,6 @@ fastdfs_next_upstream_timeout
 **context:** *http, server, location*
 
 Reserved. 
-
-[Back](#Directives)
 
 [Back](#Directives)
 
