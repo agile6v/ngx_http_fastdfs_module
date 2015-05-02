@@ -54,37 +54,58 @@ If a domain name resolves to several addresses, all of them will be used in a ro
 
 fastdfs_tracker_fetch
 -------------------
-**syntax:** *fastdfs_tracker_fetch /fetch_tracker_srv;*
+**syntax:** *fastdfs_tracker_fetch uri;*
 
 **default:** *--*
 
 **context:** *http, server, location*
 
-Reserved. 
+This directive registers an access phase handler that will issue an Nginx subrequest to request the tracker server.
+
+When the subrequest returns code is 200, then the control flow will continue to the later phase including the content phase configured by "fastdfs_pass".
+For example,
+```nginx
+        location /download {
+            fastdfs_cmd "download";
+            fastdfs_tracker_fetch /fetch_tracker_srv;
+            fastdfs_pass $storage_ip;
+        }
+        
+        location /fetch_tracker_srv {
+            internal;
+            fastdfs_pass fdfs_tracker_servers;
+        }
+```
 
 [Back](#Directives)
 
 fastdfs_fileID
 -------------------
-**syntax:** *fastdfs_fileID $arg_fileID;*
+**syntax:** *fastdfs_fileID  flag;*
 
 **default:** *no*
 
 **context:** *http, server, location*
 
-Reserved. 
+This directive specifies the fileID keyword of the FastDFS.  The flag argument supports nginx variable. When performing the delete、append、download operations, fileID can't  be empty. For example,
+
+nginx configuration is  as follow:
+>	fastdfs_fileID $arg_fileID;
+
+client request:
+>  curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
 
 [Back](#Directives)
 
 fastdfs_append_flag
 -------------------
-**syntax:** *fastdfs_append_flag off;*
+**syntax:** *fastdfs_append_flag on;*
 
 **default:** *off*
 
 **context:** *http, server, location*
 
-Reserved. 
+This directive is used to be enable append operation.  By default, file is not allowed to perform append operation. Must be enable this directive When file upload. 
 
 [Back](#Directives)
 
@@ -102,13 +123,13 @@ Makes outgoing connections to a FastDFS server originate from the specified loca
 
 fastdfs_cmd
 -------------------
-**syntax:** *fastdfs_cmd "upload|download|append|delete";*
+**syntax:** *fastdfs_cmd command;*
 
 **default:** *--*
 
 **context:** *http, server, location*
 
-Reserved. 
+This directive specifies operation command. Commands include "upload、delete、download、append".
 
 [Back](#Directives)
 
@@ -132,7 +153,7 @@ fastdfs_buffer_size
 
 **context:** *http, server, location*
 
-Sets the size of the buffer used for reading the first part of the response received from the FastDFS server. This part usually contains a small response header.
+Sets the size of the buffer used for reading the first part of the response received from the FastDFS server. This part usually contains a small response header. This default size is the page size and not less than page size.
 
 [Back](#Directives)
 
@@ -162,13 +183,13 @@ Defines a timeout for reading a response from the FastDFS server. The timeout is
 
 fastdfs_next_upstream
 -------------------
-**syntax:** *fastdfs_next_upstream*
+**syntax:** *fastdfs_next_upstream [ error | timeout | invalid_response | not_found | off ]*
 
-**default:** *no*
+**default:** *error timeout*
 
 **context:** *http, server, location*
 
-Reserved. 
+Specifies in which cases a request should be passed to the next server.
 
 [Back](#Directives)
 
