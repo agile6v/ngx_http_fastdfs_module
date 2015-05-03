@@ -79,9 +79,7 @@ typedef struct {
     ngx_http_request_t        *request;
     ngx_http_request_t        *subrequest;
     ngx_str_t                  store_ip;
-    ngx_str_t                  recv_content;
     off_t                      length;
-    ngx_uint_t                 state;
     ngx_uint_t                 proto_cmd;       //  process command  (upload、delete、download etc.)
     ngx_uint_t                 flag;            //  pass to tracker or storage
     ngx_uint_t                 done;
@@ -980,6 +978,12 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_size_value(conf->upstream.buffer_size,
                               prev->upstream.buffer_size,
                               (size_t) ngx_pagesize);
+
+    if (conf->upstream.buffer_size < (size_t) ngx_pagesize) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "\"fastdfs_buffer_size\" is not less than %z byte.", (size_t) ngx_pagesize);
+        return NGX_CONF_ERROR;
+    }
 
     ngx_conf_merge_bitmask_value(conf->upstream.next_upstream,
                               prev->upstream.next_upstream,
