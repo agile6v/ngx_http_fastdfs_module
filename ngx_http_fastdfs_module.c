@@ -23,6 +23,7 @@
 #define NGX_FDFS_TO_STORAGE                  2
 
 #define IP_ADDRESS_SIZE                      16
+#define NGX_FDFS_FILE_EXT_NAME_MAX_LEN       6
 #define NGX_FDFS_PKG_LEN_SIZE                8
 #define NGX_FDFS_GROUP_NAME_MAX_LEN          16
 
@@ -100,6 +101,7 @@ static ngx_int_t ngx_http_fastdfs_filter_init(void *data);
 static ngx_int_t ngx_http_fastdfs_non_buffered_copy_filter(void *data, ssize_t bytes);
 static ngx_int_t ngx_http_fastdfs_eval(ngx_http_request_t *r, 
     ngx_http_fastdfs_loc_conf_t *flcf);
+static u_char *ngx_http_fastdfs_get_file_ext_name(ngx_http_request_t *r, ngx_int_t twoExtName);
 static ngx_int_t ngx_http_fastdfs_storage_ip_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data);
 static ngx_int_t ngx_http_fastdfs_get_group_and_filename(ngx_http_request_t *r,
@@ -357,6 +359,7 @@ static ngx_int_t
 ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 {
     size_t                               len;
+    u_char                              *p;
     ngx_int_t                            rc;
     ngx_str_t                            fileID, group, filename;
     ngx_buf_t                           *b;
@@ -526,7 +529,13 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
                 //  TODO:   add the directive of store_path_index
                 fdfs_upload_file_hdr.store_path_index = 0;
                 int2buff(r->headers_in.content_length_n, fdfs_upload_file_hdr.upload_file_size);
-                ngx_memcpy(fdfs_upload_file_hdr.ext_name, "zip", 4);
+                p = (u_char *) ngx_http_fastdfs_get_file_ext_name(r, 1);
+                if (p != NULL && ngx_strlen(p) <= NGX_FDFS_FILE_EXT_NAME_MAX_LEN) {
+                    ngx_memcpy(fdfs_upload_file_hdr.ext_name, p, ngx_strlen(p));
+
+                    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                                   "fdfs create request: ext-%s, %V", p, &r->exten);
+                }
 
                 b->last = ngx_copy(b->last, &fdfs_hdr, sizeof(ngx_http_fastdfs_proto_hdr));
                 b->last = ngx_copy(b->last, &fdfs_upload_file_hdr, sizeof(ngx_http_fdfs_upload_file_to_store));
@@ -1421,6 +1430,69 @@ ngx_http_fastdfs_eval(ngx_http_request_t *r, ngx_http_fastdfs_loc_conf_t *flcf)
     }
 
     return NGX_OK;
+}
+
+static u_char *
+ngx_http_fastdfs_get_file_ext_name(ngx_http_request_t *r,
+    ngx_int_t twoExtName)
+{
+    u_char   *filename;
+    u_char   *fileExtName;
+    u_char   *p;
+    u_char   *pStart;
+    int       extNameLen;
+
+    filename = ngx_pcalloc(r->pool, r->uri.len + 1);
+    if (filename == NULL) {
+        return NULL;
+    }
+
+    p = ngx_copy(filename, r->uri.data, r->uri.len);
+    *p++ = '\0';
+
+    fileExtName = (u_char *) strrchr((char *) filename, '.');
+    if (fileExtName == NULL)
+    {
+        return NULL;
+    }
+
+    extNameLen = ngx_strlen(fileExtName + 1);
+    if (extNameLen > NGX_FDFS_FILE_EXT_NAME_MAX_LEN)
+    {
+        return NULL;
+    }
+
+    if (ngx_strchr(fileExtName + 1, '/') != NULL) //invalid extension name
+    {
+        return NULL;
+    }
+
+    if (!twoExtName)
+    {
+        return fileExtName + 1;
+    }
+
+    pStart = fileExtName - (NGX_FDFS_FILE_EXT_NAME_MAX_LEN - extNameLen) - 1;
+    if (pStart < filename)
+    {
+        pStart = filename;
+    }
+
+    p = fileExtName - 1;  //before .
+    while ((p > pStart) && (*p != '.'))
+    {
+        p--;
+    }
+
+    if (p > pStart)  //found (extension name have a dot)
+    {
+        if (ngx_strchr(p + 1, '/') == NULL)  //valid extension name
+        {
+            return p + 1;   //skip .
+        }
+    }
+
+    return fileExtName + 1;  //skip .
 }
 
 
