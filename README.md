@@ -120,6 +120,8 @@ fastdfs_store_path_index
 
 This directive is used to be set the upload path. By default, file is uploaded to the storage path index according to tracker returned value. If this directive is set, it will cover the tracker returns value.
 
+[Back](#Directives)
+
 fastdfs_bind
 -------------------
 **syntax:** *fastdfs_bind*
