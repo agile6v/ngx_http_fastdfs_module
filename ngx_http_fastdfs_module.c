@@ -71,8 +71,9 @@ typedef struct {
     ngx_int_t                  index;
     ngx_uint_t                 gzip_flag;
     ngx_flag_t                 append_flag;
-    ngx_uint_t                 proto_cmd;       //  fdfs process command (upload、delete、download etc.)
-    ngx_str_t                  uri;             //  location uri for tracker config
+    ngx_uint_t                 proto_cmd;           //  fdfs process command (upload、delete、download etc.)
+    ngx_int_t                  store_path_index;
+    ngx_str_t                  uri;                 //  location uri for tracker config
     ngx_http_complex_value_t  *fileID;
 } ngx_http_fastdfs_loc_conf_t;
 
@@ -148,6 +149,13 @@ static ngx_command_t  ngx_http_fastdfs_commands[] = {
       ngx_http_fastdfs_pass,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
+      NULL },
+
+    { ngx_string("fastdfs_store_path_index"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_fastdfs_loc_conf_t, store_path_index),
       NULL },
 
     { ngx_string("fastdfs_tracker_fetch"),
@@ -527,8 +535,12 @@ ngx_http_fastdfs_create_request(ngx_http_request_t *r)
 
                 int2buff(sizeof(ngx_http_fdfs_upload_file_to_store) + r->headers_in.content_length_n, fdfs_hdr.pkg_len);
 
-                //  TODO:   add the directive of store_path_index
-                fdfs_upload_file_hdr.store_path_index = ctx->store_path_index;
+                if (flcf->store_path_index != NGX_CONF_UNSET) {
+                    fdfs_upload_file_hdr.store_path_index = flcf->store_path_index;
+                } else {
+                    fdfs_upload_file_hdr.store_path_index = ctx->store_path_index;
+                }
+
                 int2buff(r->headers_in.content_length_n, fdfs_upload_file_hdr.upload_file_size);
                 p = (u_char *) ngx_http_fastdfs_get_file_ext_name(r, 1);
                 if (p != NULL && ngx_strlen(p) <= NGX_FDFS_FILE_EXT_NAME_MAX_LEN) {
@@ -954,6 +966,7 @@ ngx_http_fastdfs_create_loc_conf(ngx_conf_t *cf)
     conf->gzip_flag = NGX_CONF_UNSET_UINT;
     conf->append_flag = NGX_CONF_UNSET;
     conf->proto_cmd = NGX_CONF_UNSET_UINT;
+    conf->store_path_index = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -1027,6 +1040,7 @@ ngx_http_fastdfs_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->append_flag, prev->append_flag, 0);
     ngx_conf_merge_uint_value(conf->gzip_flag, prev->gzip_flag, 0);
     ngx_conf_merge_uint_value(conf->proto_cmd, prev->proto_cmd, 0);
+    ngx_conf_merge_value(conf->store_path_index, prev->store_path_index, NGX_CONF_UNSET);
 
     return NGX_CONF_OK;
 }
