@@ -22,6 +22,7 @@ Directives
 * [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
 * [fastdfs_fileID](#fastdfs_fileID)
 * [fastdfs_append_flag](#fastdfs_append_flag)
+* [fastdfs_store_path_index](#fastdfs_store_path_index)
 * [fastdfs_bind](#fastdfs_bind)
 * [fastdfs_cmd](#fastdfs_cmd)
 * [fastdfs_connect_timeout](#fastdfs_connect_timeout)
@@ -108,6 +109,16 @@ fastdfs_append_flag
 This directive is used to be enable append operation.  By default, file is not allowed to perform append operation. Must be enable this directive When file upload. 
 
 [Back](#Directives)
+
+fastdfs_store_path_index
+-------------------
+**syntax:** *fastdfs_store_path_index num;*
+
+**default:** *-1*
+
+**context:** *http, server, location*
+
+This directive is used to be set the upload path. By default, file is uploaded to the storage path index according to tracker returned value. If this directive is set, it will cover the tracker returns value.
 
 fastdfs_bind
 -------------------
