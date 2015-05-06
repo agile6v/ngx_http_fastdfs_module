@@ -20,7 +20,6 @@ Directives
 
 * [fastdfs_pass](#fastdfs_pass)
 * [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
-* [fastdfs_fileID](#fastdfs_fileID)
 * [fastdfs_append_flag](#fastdfs_append_flag)
 * [fastdfs_store_path_index](#fastdfs_store_path_index)
 * [fastdfs_bind](#fastdfs_bind)
@@ -33,6 +32,8 @@ Directives
 * [fastdfs_next_upstream_tries](#fastdfs_next_upstream_tries)
 * [fastdfs_next_upstream_timeout](#fastdfs_next_upstream_timeout)
 * [fastdfs_limit_rate](#fastdfs_limit_rate)
+* [fastdfs_fileID](#fastdfs_fileID)
+
 
 
 fastdfs_pass
@@ -80,24 +81,6 @@ For example,
 
 [Back](#Directives)
 
-fastdfs_fileID
--------------------
-**syntax:** *fastdfs_fileID  flag;*
-
-**default:** *no*
-
-**context:** *http, server, location*
-
-This directive specifies the fileID keyword of the FastDFS.  The flag argument supports nginx variable. When performing the delete、append、download operations, fileID can't  be empty. For example,
-
-nginx configuration is  as follow:
->	fastdfs_fileID $arg_fileID;
-
-client request:
->  curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
-
-[Back](#Directives)
-
 fastdfs_append_flag
 -------------------
 **syntax:** *fastdfs_append_flag on;*
@@ -119,6 +102,24 @@ fastdfs_store_path_index
 **context:** *http, server, location*
 
 This directive is used to be set the upload path. By default, file is uploaded to the storage path index according to tracker returned value. If this directive is set, it will cover the tracker returns value.
+
+[Back](#Directives)
+
+fastdfs_fileID
+-------------------
+**syntax:** *fastdfs_fileID flag;*
+
+**default:** *no*
+
+**context:** *http, server, location*
+
+This directive specifies the fileID keyword of the FastDFS.  The flag argument supports nginx variable. When performing the delete、append、download operations, fileID can't  be empty. For example,
+
+nginx configuration is  as follow:
+>	fastdfs_fileID $arg_fileID;
+
+client request:
+>  curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
 
 [Back](#Directives)
 
