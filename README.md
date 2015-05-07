@@ -114,10 +114,10 @@ fastdfs_fileID
 This directive specifies the fileID keyword of the FastDFS.  The flag argument supports nginx variable. When performing the delete、append、download operations, fileID can't  be empty. For example,
 
 nginx configuration is as follow:
-->    fastdfs_fileID $arg_fileID;
+>    fastdfs_fileID $arg_fileID;
 
 client request:
-->    curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
+>    curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
 
 [Back](#Directives)
 
