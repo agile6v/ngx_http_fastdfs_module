@@ -21,7 +21,7 @@ Directives
 * [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
 * [fastdfs_append_flag](#fastdfs_append_flag)
 * [fastdfs_store_path_index](#fastdfs_store_path_index)
-* [fastdfs_fileID](#fastdfs_fileID)
+* [fastdfs_file](#fastdfs_file)
 * [fastdfs_bind](#fastdfs_bind)
 * [fastdfs_cmd](#fastdfs_cmd)
 * [fastdfs_connect_timeout](#fastdfs_connect_timeout)
@@ -103,7 +103,7 @@ This directive is used to be set the upload path. By default, file is uploaded t
 
 [Back](#Directives)
 
-fastdfs_fileID
+fastdfs_file
 -------------------
 xxxxxx
 zzzzzz
