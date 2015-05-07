@@ -21,7 +21,7 @@ Directives
 * [fastdfs_tracker_fetch](#fastdfs_tracker_fetch)
 * [fastdfs_append_flag](#fastdfs_append_flag)
 * [fastdfs_store_path_index](#fastdfs_store_path_index)
-* [fastdfs_file](#fastdfs_file)
+* [fastdfs_fileID](#fastdfs_fileID)
 * [fastdfs_bind](#fastdfs_bind)
 * [fastdfs_cmd](#fastdfs_cmd)
 * [fastdfs_connect_timeout](#fastdfs_connect_timeout)
@@ -103,12 +103,23 @@ This directive is used to be set the upload path. By default, file is uploaded t
 
 [Back](#Directives)
 
-fastdfs_file
+fastdfs_fileID
 -------------------
-xxxxxx
-zzzzzz
-yyyyyy
+**syntax:** *fastdfs_fileID flag;*
+ 
+**default:** *no*
+ 
+**context:** *http, server, location*
 
+This directive specifies the fileID keyword of the FastDFS.  The flag argument supports nginx variable. When performing the delete、append、download operations, fileID can't  be empty. For example,
+
+nginx configuration is as follow:
+->    fastdfs_fileID $arg_fileID;
+
+client request:
+->    curl http://127.0.0.1/download?fileID=group1/M00/00/01/CgAL9FVA2buEBfn_AAAAAIYpzbw615.zip
+
+[Back](#Directives)
 
 
 fastdfs_bind
