@@ -10,6 +10,11 @@ Note: This module supports many features such as upload、download、delete etc.
 
 *This module is not distributed with the Nginx source.*  See [the installation instructions](#installation).
 
+
+Features
+====
+
+
 Installation
 ====
 `./configure --add-module=/path/to/ngx_http_fastdfs_module`   
