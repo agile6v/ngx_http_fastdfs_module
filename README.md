@@ -13,6 +13,7 @@ Note: This module supports many features such as upload、download、delete etc.
 
 Features
 ====
+* support upload、append、download、delete operation.
 
 
 Installation
