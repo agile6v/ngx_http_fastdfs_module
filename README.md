@@ -16,6 +16,12 @@ Features
 * support upload、append、download、delete operation.
 
 
+TODO
+====
+* Caching file when download operation
+* Non-buffering for download operation
+
+
 Installation
 ====
 `./configure --add-module=/path/to/ngx_http_fastdfs_module`   
