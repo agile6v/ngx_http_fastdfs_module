@@ -2,6 +2,9 @@ About
 ====
 The **ngx_http_fastdfs_module** allows passing requests to a FastDFS server.
 
+## NOTICE
+Originally, this project is experimental for myself and it has not yet been used in production environment. The "TODO" lists several features that need to spend a lot of time to complete and my spare time was occupied by other important things for me, so this project had to be abandoned. Sorry to disappoint you.
+
 Note: This module supports many features such as upload、download、delete etc. The [fastdfs-nginx-module][] only supports download files from local disk.
 
 
