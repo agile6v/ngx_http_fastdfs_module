@@ -22,9 +22,8 @@ Features
 TODO
 ====
 * Caching file when download operation
-* Non-buffering for download operation
-* upload support post-form format
-
+* Non-buffering for downloading operation
+* support post-form format for uploading 
 
 Installation
 ====
@@ -103,7 +102,7 @@ fastdfs_append_flag
 
 **context:** *http, server, location*
 
-This directive is used to be enable append operation.  By default, file is not allowed to perform append operation. Must be enable this directive When file upload. 
+This directive is used to be enable append operation.  By default, file is not allowed to perform append operation. Must enable this directive When file upload. 
 
 [Back](#Directives)
 
